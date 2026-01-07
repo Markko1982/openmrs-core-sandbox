@@ -1,12 +1,3 @@
-/**
- * This Source Code Form is subject to the terms of the Mozilla Public License,
- * v. 2.0. If a copy of the MPL was not distributed with this file, You can
- * obtain one at http://mozilla.org/MPL/2.0/. OpenMRS is also distributed under
- * the terms of the Healthcare Disclaimer located at http://openmrs.org/license.
- *
- * Copyright (C) OpenMRS Inc. OpenMRS is a registered trademark and the OpenMRS
- * graphic logo is a trademark of OpenMRS Inc.
- */
 package org.openmrs.validator;
 
 import org.apache.commons.lang3.StringUtils;
@@ -28,197 +19,190 @@ import org.slf4j.LoggerFactory;
 import org.springframework.validation.Errors;
 import org.springframework.validation.Validator;
 
-/**
- * This class validates a PatientIdentifier object.
- */
 @Handler(supports = { PatientIdentifier.class }, order = 50)
 public class PatientIdentifierValidator implements Validator {
-	
+
 	private static final Logger log = LoggerFactory.getLogger(PatientIdentifierValidator.class);
-	
-	/**
-	 * @see org.springframework.validation.Validator#supports(java.lang.Class)
-	 */
+
 	@Override
 	public boolean supports(Class<?> c) {
 		return PatientIdentifier.class.isAssignableFrom(c);
 	}
-	
-	/**
-	 * Validates a PatientIdentifier.
-	 * 
-	 * @see org.springframework.validation.Validator#validate(java.lang.Object,
-	 *      org.springframework.validation.Errors)
-	 * <strong>Should</strong> pass validation if field lengths are correct
-	 * <strong>Should</strong> fail validation if field lengths are not correct
-	 */
+
 	@Override
 	public void validate(Object obj, Errors errors) {
 		PatientIdentifier pi = (PatientIdentifier) obj;
 		try {
 			validateIdentifier(pi);
 			ValidateUtil.validateFieldLengths(errors, obj.getClass(), "identifier", "voidReason");
-		}
-		catch (Exception e) {
+		} catch (Exception e) {
 			errors.reject(e.getMessage());
 		}
 	}
-	
+
 	/**
-	 * Checks that the given {@link PatientIdentifier} is valid
-	 * 
-	 * @param pi - the {@link PatientIdentifier} to validate
-	 * @throws PatientIdentifierException if the {@link PatientIdentifier} is invalid
-	 * <strong>Should</strong> fail validation if PatientIdentifier is null
-	 * <strong>Should</strong> pass validation if PatientIdentifier is voided
-	 * <strong>Should</strong> fail validation if another patient has a matching identifier of the same type
-	 * <strong>Should</strong> pass if in use and id type uniqueness is set to non unique
-	 * @see #validateIdentifier(String, PatientIdentifierType)
+	 * Core validation entry point
 	 */
 	public static void validateIdentifier(PatientIdentifier pi) throws PatientIdentifierException {
-		
-		// Validate that the identifier is non-null
+
 		if (pi == null) {
 			throw new BlankIdentifierException("PatientIdentifier.error.null");
 		}
-		
-		// Only validate if the PatientIdentifier is not voided
+
+		// ===== CPF CUSTOM VALIDATION (ANTES DO FLUXO PADRÃO) =====
+		if (!pi.getVoided() && isCpfIdentifier(pi)) {
+
+			String original = pi.getIdentifier();
+			String normalized = normalizeCpf(original);
+
+			if (!isValidCpf(normalized)) {
+				throw new PatientIdentifierException("Invalid CPF: " + original, pi);
+			}
+
+			// Normaliza para evitar duplicidade mascarado vs não mascarado
+			pi.setIdentifier(normalized);
+		}
+		// ========================================================
+
 		if (!pi.getVoided()) {
-			
-			// Check that this is a valid identifier
+
 			validateIdentifier(pi.getIdentifier(), pi.getIdentifierType());
-			
-			// Check that location is included if it is required (default behavior is to require it)
+
 			LocationBehavior lb = pi.getIdentifierType().getLocationBehavior();
 			if (pi.getLocation() == null && (lb == null || lb == LocationBehavior.REQUIRED)) {
-				String identifierString = (pi.getIdentifier() != null) ? pi.getIdentifier() : "";
-				throw new PatientIdentifierException(Context.getMessageSourceService().getMessage(
-				    "PatientIdentifier.location.null", new Object[] { identifierString }, Context.getLocale()));
+				throw new PatientIdentifierException(
+						Context.getMessageSourceService().getMessage(
+								"PatientIdentifier.location.null",
+								new Object[] { pi.getIdentifier() },
+								Context.getLocale()));
 			}
-			
+
 			if (pi.getIdentifierType().getUniquenessBehavior() != UniquenessBehavior.NON_UNIQUE
-			        && Context.getPatientService().isIdentifierInUseByAnotherPatient(pi)) {
-				// Check is already in use by another patient
-				throw new IdentifierNotUniqueException(Context.getMessageSourceService().getMessage(
-				    "PatientIdentifier.error.notUniqueWithParameter", new Object[] { pi.getIdentifier() },
-				    Context.getLocale()), pi);
+					&& Context.getPatientService().isIdentifierInUseByAnotherPatient(pi)) {
+
+				throw new IdentifierNotUniqueException(
+						Context.getMessageSourceService().getMessage(
+								"PatientIdentifier.error.notUniqueWithParameter",
+								new Object[] { pi.getIdentifier() },
+								Context.getLocale()),
+						pi);
 			}
 		}
 	}
-	
+
 	/**
-	 * Validates that a given identifier string is valid for a given {@link PatientIdentifierType}
-	 * Checks for things like blank identifiers, invalid check digits, and invalid format.
-	 * 
-	 * @param pit - the {@link PatientIdentifierType} to validate against
-	 * @param identifier - the identifier to check against the passed {@link PatientIdentifierType}
-	 * @throws PatientIdentifierException if the identifier is invalid
-	 * <strong>Should</strong> fail validation if PatientIdentifierType is null
-	 * <strong>Should</strong> fail validation if identifier is blank
-	 * @see #checkIdentifierAgainstFormat(String, String, String)
-	 * @see #checkIdentifierAgainstValidator(String, IdentifierValidator)
+	 * Default OpenMRS validation
 	 */
-	public static void validateIdentifier(String identifier, PatientIdentifierType pit) throws PatientIdentifierException {
-		
-		log.debug("Checking identifier: " + identifier + " for type: " + pit);
-		
-		// Validate input parameters
+	public static void validateIdentifier(String identifier, PatientIdentifierType pit)
+			throws PatientIdentifierException {
+
+		log.debug("Checking identifier: {} for type: {}", identifier, pit);
+
 		if (pit == null) {
 			throw new BlankIdentifierException("PatientIdentifierType.null");
 		}
 		if (StringUtils.isBlank(identifier)) {
 			throw new BlankIdentifierException("PatientIdentifier.error.nullOrBlank");
 		}
-		
+
 		checkIdentifierAgainstFormat(identifier, pit.getFormat(), pit.getFormatDescription());
-		
-		// Check identifier against IdentifierValidator
+
 		if (pit.hasValidator()) {
 			IdentifierValidator validator = Context.getPatientService().getIdentifierValidator(pit.getValidator());
 			checkIdentifierAgainstValidator(identifier, validator);
 		}
-		log.debug("The identifier check was successful");
-		
 	}
-	
-	/**
-	 * Validates that a given identifier string is valid for a given regular expression format
-	 * 
-	 * @param identifier - the identifier to check against the passed {@link PatientIdentifierType}
-	 * @param format - the regular expression format to validate against
-	 * @param formatDescription - user-friendly way of describing format (may be null)
-	 * @throws PatientIdentifierException if the identifier is does not match the format
-	 * <strong>Should</strong> fail validation if identifier is blank
-	 * <strong>Should</strong> fail validation if identifier does not match the format
-	 * <strong>Should</strong> pass validation if identifier matches the format
-	 * <strong>Should</strong> pass validation if the format is blank
-	 * <strong>Should</strong> include format in error message if no formatDescription is specified
-	 * <strong>Should</strong> include formatDescription in error message if specified
-	 */
+
+	// =====================================================================
+	// ======================== CPF HELPERS =================================
+	// =====================================================================
+
+	private static boolean isCpfIdentifier(PatientIdentifier pi) {
+		if (pi.getIdentifierType() == null) {
+			return false;
+		}
+		String name = pi.getIdentifierType().getName();
+		return "CPF".equalsIgnoreCase(StringUtils.trimToNull(name));
+	}
+
+	private static String normalizeCpf(String rawCpf) {
+		if (rawCpf == null) {
+			return null;
+		}
+		return rawCpf.replaceAll("\\D", "");
+	}
+
+	private static boolean isValidCpf(String cpf) {
+
+		if (StringUtils.isBlank(cpf) || cpf.length() != 11) {
+			return false;
+		}
+
+		// elimina CPFs com todos os dígitos iguais
+		if (cpf.chars().distinct().count() == 1) {
+			return false;
+		}
+
+		int[] d = cpf.chars().map(c -> c - '0').toArray();
+
+		int sum1 = 0;
+		for (int i = 0; i < 9; i++) {
+			sum1 += d[i] * (10 - i);
+		}
+		int dv1 = 11 - (sum1 % 11);
+		if (dv1 >= 10)
+			dv1 = 0;
+		if (dv1 != d[9])
+			return false;
+
+		int sum2 = 0;
+		for (int i = 0; i < 10; i++) {
+			sum2 += d[i] * (11 - i);
+		}
+		int dv2 = 11 - (sum2 % 11);
+		if (dv2 >= 10)
+			dv2 = 0;
+
+		return dv2 == d[10];
+	}
+
+	// =====================================================================
+
 	public static void checkIdentifierAgainstFormat(String identifier, String format, String formatDescription)
-	        throws PatientIdentifierException {
-		
-		log.debug("Checking identifier: " + identifier + " against format: " + format);
-		
-		if (StringUtils.isBlank(identifier)) {
-			throw new BlankIdentifierException("PatientIdentifier.error.nullOrBlank");
-		}
-		
+			throws PatientIdentifierException {
+
 		if (StringUtils.isBlank(format)) {
-			log.debug("Format is blank, identifier passes.");
 			return;
 		}
-		
-		// Check identifier against regular expression format
+
 		if (!identifier.matches(format)) {
-			log.debug("The two DO NOT match");
-			throw new InvalidIdentifierFormatException(getMessage("PatientIdentifier.error.invalidFormat", identifier,
-			    StringUtils.isNotBlank(formatDescription) ? formatDescription : format));
+			throw new InvalidIdentifierFormatException(
+					getMessage("PatientIdentifier.error.invalidFormat",
+							identifier,
+							StringUtils.defaultIfBlank(formatDescription, format)));
 		}
-		log.debug("The two match!!");
 	}
-	
-	/**
-	 * Validates that a given identifier string is valid for a given IdentifierValidator
-	 * 
-	 * @param identifier the identifier to check against the passed {@link PatientIdentifierType}
-	 * @param validator the IdentifierValidator to use to check the identifier
-	 * @throws PatientIdentifierException if the identifier is does not match the format
-	 * <strong>Should</strong> fail validation if identifier is blank
-	 * <strong>Should</strong> fail validation if identifier is invalid
-	 * <strong>Should</strong> pass validation if identifier is valid
-	 * <strong>Should</strong> pass validation if validator is null
-	 */
+
 	public static void checkIdentifierAgainstValidator(String identifier, IdentifierValidator validator)
-	        throws PatientIdentifierException {
-		
-		log.debug("Checking identifier: " + identifier + " against validator: " + validator);
-		
-		if (StringUtils.isBlank(identifier)) {
-			throw new BlankIdentifierException("PatientIdentifier.error.nullOrBlank");
-		}
-		
+			throws PatientIdentifierException {
+
 		if (validator == null) {
-			log.debug("Validator is null, identifier passes.");
 			return;
 		}
-		
-		// Check identifier against IdentifierValidator
+
 		try {
 			if (!validator.isValid(identifier)) {
-				throw new InvalidCheckDigitException(getMessage("PatientIdentifier.error.checkDigitWithParameter",
-				    identifier));
+				throw new InvalidCheckDigitException(
+						getMessage("PatientIdentifier.error.checkDigitWithParameter", identifier));
 			}
+		} catch (UnallowedIdentifierException e) {
+			throw new InvalidCheckDigitException(
+					getMessage("PatientIdentifier.error.unallowedIdentifier",
+							identifier, validator.getName()));
 		}
-		catch (UnallowedIdentifierException e) {
-			throw new InvalidCheckDigitException(getMessage("PatientIdentifier.error.unallowedIdentifier", identifier,
-			    validator.getName()));
-		}
-		log.debug("The identifier passed validation.");
-		
 	}
-	
-	private static String getMessage(String messageKey, String... arguments) {
-		return Context.getMessageSourceService().getMessage(messageKey, arguments, Context.getLocale());
+
+	private static String getMessage(String key, String... args) {
+		return Context.getMessageSourceService().getMessage(key, args, Context.getLocale());
 	}
 }
