@@ -26,6 +26,7 @@ import static org.openmrs.api.context.Context.getUserService;
 import static org.openmrs.test.TestUtil.assertCollectionContentsEquals;
 import static org.openmrs.util.AddressMatcher.containsAddress;
 import static org.openmrs.util.NameMatcher.containsFullName;
+import static org.hamcrest.CoreMatchers.containsString;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -278,6 +279,24 @@ public class PatientServiceTest extends BaseContextSensitiveTest {
 
 		Patient createdPatientById = patientService.getPatient(createdPatient.getPatientId());
 		assertNotNull(createdPatientById);
+
+	}
+
+	@Test
+	public void savePatient_shouldFailIfCpfIdentifierIsMissing() throws Exception {
+		// given: um paciente válido com UM identificador (para não cair na regra antiga
+		// de "precisa ter pelo menos um")
+		Patient patient = createBasicPatient();
+
+		PatientIdentifierType nonCpfType = patientService.getPatientIdentifierType(1);
+		// (assumimos que esse tipo não é "CPF" nos datasets padrão)
+		PatientIdentifier nonCpfIdentifier = new PatientIdentifier("123-0", nonCpfType, locationService.getLocation(1));
+		nonCpfIdentifier.setPreferred(true);
+		patient.addIdentifier(nonCpfIdentifier);
+
+		// when + then: salvar deve falhar porque falta um identificador do tipo CPF
+		APIException ex = assertThrows(APIException.class, () -> patientService.savePatient(patient));
+		assertThat(ex.getMessage(), containsString("CPF"));
 
 	}
 
