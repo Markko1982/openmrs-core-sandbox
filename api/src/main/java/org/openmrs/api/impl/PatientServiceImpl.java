@@ -1383,11 +1383,17 @@ public class PatientServiceImpl extends BaseOpenmrsService implements PatientSer
 	public PatientIdentifier voidPatientIdentifier(PatientIdentifier patientIdentifier, String reason)
 			throws APIException {
 
+		// Guard clause básica
 		if (patientIdentifier == null || StringUtils.isBlank(reason)) {
 			throw new APIException("Patient.identifier.cannot.be.null", (Object[]) null);
 		}
 
-		// Business rule: cannot void the last active identifier of a patient
+		// REGRA 1: não permitir voidar identificador preferred
+		if (Boolean.TRUE.equals(patientIdentifier.getPreferred())) {
+			throw new APIException("Cannot void a preferred patient identifier");
+		}
+
+		// REGRA 2: não permitir voidar o ÚLTIMO identificador ativo
 		Patient patient = patientIdentifier.getPatient();
 		if (patient != null) {
 			long activeCount = patient.getIdentifiers().stream()
@@ -1399,13 +1405,16 @@ public class PatientServiceImpl extends BaseOpenmrsService implements PatientSer
 			}
 		}
 
+		// A partir daqui: efeitos colaterais (infraestrutura)
 		patientIdentifier.setVoided(true);
 		patientIdentifier.setVoidReason(reason);
 		patientIdentifier.setDateVoided(new Date());
-		patientIdentifier.setVoidedBy(Context.getAuthenticatedUser());
+
+		if (Context.getAuthenticatedUser() != null) {
+			patientIdentifier.setVoidedBy(Context.getAuthenticatedUser());
+		}
 
 		return Context.getPatientService().savePatientIdentifier(patientIdentifier);
-
 	}
 
 	/**
