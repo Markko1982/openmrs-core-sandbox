@@ -55,9 +55,11 @@ import org.openmrs.test.jupiter.BaseContextMockTest;
 
 /**
  * This class tests org.openmrs.{@link PatientServiceImpl}
- * without using the application context and mocking the identifier validator and Context.
+ * without using the application context and mocking the identifier validator
+ * and Context.
  *
- * If you need an integration test with application context and DB, have a look at @see org.openmrs.api.{@link PatientServiceTest}
+ * If you need an integration test with application context and DB, have a look
+ * at @see org.openmrs.api.{@link PatientServiceTest}
  */
 public class PatientServiceImplTest extends BaseContextMockTest {
 
@@ -87,7 +89,7 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 
 	@Test
 	public void checkPatientIdentifiers_shouldThrowMissingRequiredIdentifierGivenRequiredIdentifierTypeMissing()
-		throws Exception {
+			throws Exception {
 		// given
 		final PatientIdentifierType requiredIdentifierType = new PatientIdentifierType(12345);
 		requiredIdentifierType.setUuid("some type uuid");
@@ -99,23 +101,21 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 		final List<PatientIdentifierType> requiredTypes = new ArrayList<>();
 		requiredTypes.add(requiredIdentifierType);
 		when(patientDaoMock.getPatientIdentifierTypes(any(), any(), any(), any()))
-			.thenReturn(requiredTypes);
+				.thenReturn(requiredTypes);
 
 		final Patient patientWithIdentifiers = new Patient();
 		patientWithIdentifiers
-			.addIdentifier(new PatientIdentifier("some identifier", patientIdentifierType, mock(Location.class)));
+				.addIdentifier(new PatientIdentifier("some identifier", patientIdentifierType, mock(Location.class)));
 
 		try {
 			// when
 			patientService.checkPatientIdentifiers(patientWithIdentifiers);
 			fail();
 			// then
-		}
-		catch (MissingRequiredIdentifierException e) {
+		} catch (MissingRequiredIdentifierException e) {
 			assertTrue(e.getMessage().contains("required"));
 			assertTrue(e.getMessage().contains("NameOfRequiredIdentifierType"));
-		}
-		catch (Exception e) {
+		} catch (Exception e) {
 			fail("Expecting MissingRequiredIdentifierException");
 		}
 
@@ -123,7 +123,7 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 
 	@Test
 	public void checkPatientIdentifiers_shouldNotThrowMissingRequiredIdentifierGivenRequiredIdentifierTypesArePresent()
-		throws Exception {
+			throws Exception {
 		// given
 		final String typeUuid = "equal type uuid";
 		final PatientIdentifierType requiredIdentifierType = new PatientIdentifierType(12345);
@@ -134,15 +134,16 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 		final List<PatientIdentifierType> requiredTypes = new ArrayList<>();
 		requiredTypes.add(requiredIdentifierType);
 		when(patientDaoMock.getPatientIdentifierTypes(any(), any(), any(), any()))
-			.thenReturn(requiredTypes);
+				.thenReturn(requiredTypes);
 
 		final Patient patientWithIdentifiers = new Patient();
 		patientWithIdentifiers
-			.addIdentifier(new PatientIdentifier("some identifier", patientIdentifierType, mock(Location.class)));
+				.addIdentifier(new PatientIdentifier("some identifier", patientIdentifierType, mock(Location.class)));
 		final PatientIdentifierType anotherPatientIdentifier = new PatientIdentifierType(2345);
 		anotherPatientIdentifier.setUuid("another type uuid");
 		patientWithIdentifiers
-			.addIdentifier(new PatientIdentifier("some identifier", anotherPatientIdentifier, mock(Location.class)));
+				.addIdentifier(
+						new PatientIdentifier("some identifier", anotherPatientIdentifier, mock(Location.class)));
 
 		// when
 		patientService.checkPatientIdentifiers(patientWithIdentifiers);
@@ -165,24 +166,24 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 
 		final Patient patientWithIdentifiers = new Patient();
 		final PatientIdentifier patientIdentifier = new PatientIdentifier("some identifier", identifierType,
-			mock(Location.class));
+				mock(Location.class));
 
 		patientIdentifier.setIdentifier(equalIdentifier);
 		patientWithIdentifiers.addIdentifier(patientIdentifier);
 		final PatientIdentifier patientIdentifierSameType = new PatientIdentifier("some identifier", sameIdentifierType,
-			mock(Location.class));
+				mock(Location.class));
 		patientIdentifierSameType.setIdentifier(equalIdentifier);
 		patientWithIdentifiers.addIdentifier(patientIdentifierSameType);
 
 		DuplicateIdentifierException thrown = assertThrows(DuplicateIdentifierException.class,
-			() -> patientService.checkPatientIdentifiers(patientWithIdentifiers));
+				() -> patientService.checkPatientIdentifiers(patientWithIdentifiers));
 		assertNotNull(thrown.getPatientIdentifier());
 		assertThat(thrown.getMessage(), containsString("Identifier1 id type #: 12345"));
 	}
 
 	@Test
 	public void checkPatientIdentifiers_shouldThrowInsufficientIdentifiersErrorGivenPatientHasNoActiveIdentifiers()
-		throws Exception {
+			throws Exception {
 		// given
 		Patient patient = new Patient();
 		patient.setVoided(false);
@@ -191,7 +192,8 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 		// when
 		assertThrows(InsufficientIdentifiersException.class, () -> patientService.checkPatientIdentifiers(patient));
 
-		// this patient only has a voided identifier, so saving is not allowed > exception
+		// this patient only has a voided identifier, so saving is not allowed >
+		// exception
 	}
 
 	@Test
@@ -209,7 +211,8 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 
 	@Test
 	public void getDuplicatePatientsByAttributes_shouldThrowErrorGivenEmptyAttributes() throws Exception {
-		assertThrows(APIException.class, () -> patientService.getDuplicatePatientsByAttributes(Collections.emptyList()));
+		assertThrows(APIException.class,
+				() -> patientService.getDuplicatePatientsByAttributes(Collections.emptyList()));
 	}
 
 	@Test
@@ -220,9 +223,9 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 	@Test
 	public void getDuplicatePatientsByAttributes_shouldCallDaoGivenAttributes() throws Exception {
 		when(patientDaoMock.getDuplicatePatientsByAttributes(anyList())).thenReturn(
-			Collections.singletonList(mock(Patient.class)));
+				Collections.singletonList(mock(Patient.class)));
 		final List<Patient> duplicatePatients = patientService
-			.getDuplicatePatientsByAttributes(Arrays.asList("some attribute", "another attribute"));
+				.getDuplicatePatientsByAttributes(Arrays.asList("some attribute", "another attribute"));
 		verify(patientDaoMock, times(1)).getDuplicatePatientsByAttributes(anyList());
 		assertEquals(duplicatePatients.size(), 1);
 	}
@@ -234,16 +237,16 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 		final List<PatientIdentifierType> expectedIdentifierTypes = new ArrayList<>();
 		expectedIdentifierTypes.add(new PatientIdentifierType(12345));
 		when(patientDaoMock.getPatientIdentifierTypes(any(), any(), any(), any()))
-			.thenReturn(expectedIdentifierTypes);
+				.thenReturn(expectedIdentifierTypes);
 
 		// when
 		final List<PatientIdentifierType> actualIdentifierTypes = patientService
-			.getPatientIdentifierTypes("a name", "a format", true, false);
+				.getPatientIdentifierTypes("a name", "a format", true, false);
 
 		// then
 		verify(patientDaoMock, times(1)).getPatientIdentifierTypes("a name", "a format", true, false);
 		assertEquals(expectedIdentifierTypes.get(0).getPatientIdentifierTypeId(),
-			actualIdentifierTypes.get(0).getPatientIdentifierTypeId());
+				actualIdentifierTypes.get(0).getPatientIdentifierTypeId());
 	}
 
 	@Test
@@ -251,11 +254,11 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 
 		// given
 		when(patientDaoMock.getPatientIdentifierTypes(any(), any(), any(), any()))
-			.thenReturn(null);
+				.thenReturn(null);
 
 		// when
 		final List<PatientIdentifierType> actualIdentifierTypes = patientService
-			.getPatientIdentifierTypes("a name", "a format", true, false);
+				.getPatientIdentifierTypes("a name", "a format", true, false);
 
 		// then
 		verify(patientDaoMock, times(1)).getPatientIdentifierTypes("a name", "a format", true, false);
@@ -269,7 +272,8 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 
 	@Test
 	public void processDeath_shouldThrowAPIExceptionIfDateDiedIsNull() throws Exception {
-		assertThrows(APIException.class, () -> patientService.processDeath(new Patient(), null, new Concept(), "unknown"));
+		assertThrows(APIException.class,
+				() -> patientService.processDeath(new Patient(), null, new Concept(), "unknown"));
 	}
 
 	@Test
@@ -283,7 +287,7 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 		final Date dateDied = new Date();
 		final Concept causeOfDeath = new Concept(2);
 
-		when(conceptService.getConcept((String)any())).thenReturn(new Concept());
+		when(conceptService.getConcept((String) any())).thenReturn(new Concept());
 		when(locationService.getDefaultLocation()).thenReturn(new Location());
 
 		UserContext userContext = mock(UserContext.class);
@@ -313,4 +317,20 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 		patientIdentifier.setVoidReason("Testing whether voided identifiers are ignored");
 		return patientIdentifier;
 	}
+
+	@Test
+	public void voidPatientIdentifier_shouldFailIfIdentifierIsPreferred() {
+
+		// given
+		PatientIdentifier identifier = new PatientIdentifier();
+		identifier.setPreferred(true);
+
+		// when
+		APIException exception = assertThrows(APIException.class,
+				() -> patientService.voidPatientIdentifier(identifier, "testing void"));
+
+		// then
+		assertThat(exception.getMessage(), containsString("preferred"));
+	}
+
 }
