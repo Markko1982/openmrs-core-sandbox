@@ -210,6 +210,24 @@ public class PatientServiceImplTest extends BaseContextMockTest {
 	}
 
 	@Test
+	public void voidPatientIdentifier_shouldFailIfItIsTheLastActiveIdentifier() {
+		// given
+		Patient patient = new Patient();
+		PatientIdentifierType type = new PatientIdentifierType();
+		type.setName("CPF");
+
+		PatientIdentifier identifier = new PatientIdentifier("12345678900", type, mock(Location.class));
+		identifier.setPatient(patient);
+		identifier.setVoided(false);
+
+		patient.addIdentifier(identifier);
+
+		// when + then
+		assertThrows(APIException.class,
+				() -> patientService.voidPatientIdentifier(identifier, "testing last active identifier"));
+	}
+
+	@Test
 	public void getDuplicatePatientsByAttributes_shouldThrowErrorGivenEmptyAttributes() throws Exception {
 		assertThrows(APIException.class,
 				() -> patientService.getDuplicatePatientsByAttributes(Collections.emptyList()));
