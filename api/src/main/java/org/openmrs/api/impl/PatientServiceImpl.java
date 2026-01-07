@@ -288,6 +288,17 @@ public class PatientServiceImpl extends BaseOpenmrsService implements PatientSer
 		if (!patient.getVoided() && patient.getActiveIdentifiers().isEmpty()) {
 			throw new InsufficientIdentifiersException("At least one nonvoided Patient Identifier is required");
 		}
+		// Brazil business rule: CPF identifier is required for non-voided patients
+		if (!patient.getVoided()) {
+			boolean hasActiveCpf = patient.getActiveIdentifiers().stream()
+					.anyMatch(pi -> pi.getIdentifierType() != null
+							&& pi.getIdentifierType().getName() != null
+							&& "CPF".equalsIgnoreCase(pi.getIdentifierType().getName().trim()));
+
+			if (!hasActiveCpf) {
+				throw new PatientIdentifierException("CPF identifier is required");
+			}
+		}
 
 		final List<PatientIdentifier> patientIdentifiers = new ArrayList<>(patient.getIdentifiers());
 
