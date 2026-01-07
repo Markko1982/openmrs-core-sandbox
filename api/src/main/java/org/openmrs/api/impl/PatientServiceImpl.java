@@ -1387,9 +1387,16 @@ public class PatientServiceImpl extends BaseOpenmrsService implements PatientSer
 			throw new APIException("Patient.identifier.cannot.be.null", (Object[]) null);
 		}
 
-		// Business rule: cannot void preferred identifier
-		if (Boolean.TRUE.equals(patientIdentifier.getPreferred())) {
-			throw new APIException("Cannot void a preferred patient identifier");
+		// Business rule: cannot void the last active identifier of a patient
+		Patient patient = patientIdentifier.getPatient();
+		if (patient != null) {
+			long activeCount = patient.getIdentifiers().stream()
+					.filter(pi -> !Boolean.TRUE.equals(pi.getVoided()))
+					.count();
+
+			if (activeCount <= 1) {
+				throw new APIException("Cannot void the last active patient identifier");
+			}
 		}
 
 		patientIdentifier.setVoided(true);
